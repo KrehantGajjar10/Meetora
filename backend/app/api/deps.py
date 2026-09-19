@@ -40,3 +40,15 @@ def get_current_user(
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return user
+
+
+def get_current_organizer(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if not getattr(current_user, "is_organizer", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Organizer privileges required to access this resource",
+        )
+    return current_user
+

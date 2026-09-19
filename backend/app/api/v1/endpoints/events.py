@@ -60,7 +60,7 @@ def read_events(
 @router.get("/organizer/overview", response_model=OrganizerOverview)
 def get_organizer_overview(
     db: Session = Depends(get_db),
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_organizer),
 ) -> Any:
     """
     Get overview statistics and upcoming workbench events for the current organizer.
@@ -180,7 +180,7 @@ def get_organizer_overview(
 @router.get("/organizer/my-events", response_model=List[OrganizerEvent])
 def get_organizer_my_events(
     db: Session = Depends(get_db),
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_organizer),
     status_filter: Optional[str] = Query(default=None, alias="status", description="Filter by status"),
     search: Optional[str] = Query(default=None, description="Search by title or description"),
     sort: Optional[str] = Query(default="upcoming", description="Sort order: upcoming or recent"),
@@ -325,6 +325,23 @@ def register_for_event(
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
+    if event.status == "Cancelled":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot register for a cancelled event",
+        )
+    if event.status == "Draft":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot register for an unpublished draft event",
+        )
+    if event.end_time and event.end_time < datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot register for an event that has already ended",
+        )
+
+
     existing = (
         db.query(Registration)
         .filter(Registration.user_id == current_user.id, Registration.event_id == event_id)
@@ -400,7 +417,7 @@ def create_event(
     *,
     db: Session = Depends(get_db),
     event_in: EventCreate,
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_organizer),
 ) -> Any:
     """
     Create new event. Authenticated organizer is set as owner.
@@ -423,7 +440,7 @@ def update_event(
     db: Session = Depends(get_db),
     event_id: UUID,
     event_in: EventUpdate,
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_organizer),
 ) -> Any:
     """
     Update an event. Verifies that the authenticated user owns the event.
@@ -457,7 +474,7 @@ def update_event_status(
     db: Session = Depends(get_db),
     event_id: UUID,
     status_in: EventStatusUpdate,
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_organizer),
 ) -> Any:
     """
     Update event publishing status (e.g. Published, Draft, Cancelled).
@@ -488,7 +505,7 @@ def get_event_attendees(
     db: Session = Depends(get_db),
     status_filter: Optional[str] = Query(None, alias="status"),
     search: Optional[str] = Query(None),
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_organizer),
 ) -> Any:
     """
     Get full attendee roster and queue overview for an event (Organizer only).
@@ -586,7 +603,7 @@ def lookup_attendees_for_check_in(
     event_id: UUID,
     query: str = Query(..., min_length=1),
     db: Session = Depends(get_db),
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_organizer),
 ) -> Any:
     """
     Search candidate attendees for check-in desk by name, email, or ticket code.
@@ -640,7 +657,7 @@ def check_in_attendee(
     event_id: UUID,
     payload: CheckInRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_organizer),
 ) -> Any:
     """
     Fast verification and check-in of attendee ticket.
@@ -728,7 +745,7 @@ def toggle_attendee_checkin(
     event_id: UUID,
     registration_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_organizer),
 ) -> Any:
     """
     Toggle an attendee's check-in status (check in or undo check in).

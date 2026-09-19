@@ -218,23 +218,41 @@ def test_organizer_endpoints_and_authorization():
         email=f"org1_{org1_id.hex[:6]}@example.com",
         full_name="Lead Organizer",
         hashed_password=security.get_password_hash("password123"),
-        is_active=True
+        is_active=True,
+        is_organizer=True,
     )
     org2 = User(
         id=org2_id,
         email=f"org2_{org2_id.hex[:6]}@example.com",
         full_name="Secondary Organizer",
         hashed_password=security.get_password_hash("password123"),
-        is_active=True
+        is_active=True,
+        is_organizer=True,
     )
-    db.add_all([org1, org2])
+    regular_user_id = uuid.uuid4()
+    regular_user = User(
+        id=regular_user_id,
+        email=f"regular_{regular_user_id.hex[:6]}@example.com",
+        full_name="Regular Attendee",
+        hashed_password=security.get_password_hash("password123"),
+        is_active=True,
+        is_organizer=False,
+    )
+    db.add_all([org1, org2, regular_user])
     db.commit()
     db.close()
 
     token1 = security.create_access_token(org1_id)
     token2 = security.create_access_token(org2_id)
+    reg_token = security.create_access_token(regular_user_id)
     headers1 = {"Authorization": f"Bearer {token1}"}
     headers2 = {"Authorization": f"Bearer {token2}"}
+    reg_headers = {"Authorization": f"Bearer {reg_token}"}
+
+    # 0. Regular attendee attempting organizer overview -> 403 Forbidden
+    forbidden_resp = client.get("/api/events/organizer/overview", headers=reg_headers)
+    assert forbidden_resp.status_code == 403
+    assert "organizer privileges" in forbidden_resp.json()["detail"].lower()
 
     # 1. Organizer Overview (initial state)
     ov_resp = client.get("/api/events/organizer/overview", headers=headers1)
@@ -340,6 +358,7 @@ def test_attendee_management_and_checkin():
         full_name="Desk Organizer",
         hashed_password=security.get_password_hash("password123"),
         is_active=True,
+        is_organizer=True,
     )
     other_org = User(
         id=other_org_id,
@@ -347,6 +366,7 @@ def test_attendee_management_and_checkin():
         full_name="Other Organizer",
         hashed_password=security.get_password_hash("password123"),
         is_active=True,
+        is_organizer=True,
     )
     att1 = User(
         id=att1_id,

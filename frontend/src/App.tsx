@@ -1,10 +1,12 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 
 // Code-split page components with dynamic imports (resolves > 500 kB chunk warning)
+const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const Login = lazy(() => import('@/pages/Login'));
 const Register = lazy(() => import('@/pages/Register'));
 const ExploreEvents = lazy(() => import('@/pages/ExploreEvents'));
@@ -74,102 +76,112 @@ function OrganizerProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+
+  // Enforce organizer role authorization
+  if (!user.is_organizer) {
+    return <Navigate to="/events" replace />;
+  }
   
   return <>{children}</>;
 }
 
 export function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Suspense fallback={<PageFallback />}>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route 
-              path="/" 
-              element={
-                <ProtectedRoute>
-                  <ExploreEvents />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/events" 
-              element={
-                <ProtectedRoute>
-                  <ExploreEvents />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/events/:id" 
-              element={
-                <ProtectedRoute>
-                  <EventDetails />
-                </ProtectedRoute>
-              } 
-            />
-            <Route
-              path="/registrations"
-              element={
-                <ProtectedRoute>
-                  <MyRegistrations />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/organizer"
-              element={
-                <OrganizerProtectedRoute>
-                  <OrganizerOverview />
-                </OrganizerProtectedRoute>
-              }
-            />
-            <Route
-              path="/organizer/events"
-              element={
-                <OrganizerProtectedRoute>
-                  <OrganizerEvents />
-                </OrganizerProtectedRoute>
-              }
-            />
-            <Route
-              path="/organizer/events/new"
-              element={
-                <OrganizerProtectedRoute>
-                  <CreateEditEvent />
-                </OrganizerProtectedRoute>
-              }
-            />
-            <Route
-              path="/organizer/events/:id/edit"
-              element={
-                <OrganizerProtectedRoute>
-                  <CreateEditEvent />
-                </OrganizerProtectedRoute>
-              }
-            />
-            <Route
-              path="/organizer/events/:id/attendees"
-              element={
-                <OrganizerProtectedRoute>
-                  <EventManagement />
-                </OrganizerProtectedRoute>
-              }
-            />
-            <Route
-              path="/organizer/events/:id/checkin"
-              element={
-                <OrganizerProtectedRoute>
-                  <CheckInDesk />
-                </OrganizerProtectedRoute>
-              }
-            />
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Suspense fallback={<PageFallback />}>
+            <Routes>
+              {/* Public Marketing Landing Page */}
+              <Route path="/" element={<LandingPage />} />
+
+              {/* Standalone Auth Routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+
+              {/* Authenticated Attendee Routes */}
+              <Route 
+                path="/events" 
+                element={
+                  <ProtectedRoute>
+                    <ExploreEvents />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/events/:id" 
+                element={
+                  <ProtectedRoute>
+                    <EventDetails />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route
+                path="/registrations"
+                element={
+                  <ProtectedRoute>
+                    <MyRegistrations />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Authenticated Organizer Workspace Routes */}
+              <Route
+                path="/organizer"
+                element={
+                  <OrganizerProtectedRoute>
+                    <OrganizerOverview />
+                  </OrganizerProtectedRoute>
+                }
+              />
+              <Route
+                path="/organizer/events"
+                element={
+                  <OrganizerProtectedRoute>
+                    <OrganizerEvents />
+                  </OrganizerProtectedRoute>
+                }
+              />
+              <Route
+                path="/organizer/events/new"
+                element={
+                  <OrganizerProtectedRoute>
+                    <CreateEditEvent />
+                  </OrganizerProtectedRoute>
+                }
+              />
+              <Route
+                path="/organizer/events/:id/edit"
+                element={
+                  <OrganizerProtectedRoute>
+                    <CreateEditEvent />
+                  </OrganizerProtectedRoute>
+                }
+              />
+              <Route
+                path="/organizer/events/:id/attendees"
+                element={
+                  <OrganizerProtectedRoute>
+                    <EventManagement />
+                  </OrganizerProtectedRoute>
+                }
+              />
+              <Route
+                path="/organizer/events/:id/checkin"
+                element={
+                  <OrganizerProtectedRoute>
+                    <CheckInDesk />
+                  </OrganizerProtectedRoute>
+                }
+              />
+
+              {/* Catch-all route redirects to / */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

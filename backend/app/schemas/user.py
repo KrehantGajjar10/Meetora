@@ -16,6 +16,7 @@ class UserCreate(UserBase):
 class UserResponse(UserBase):
     id: uuid.UUID
     is_active: bool
+    is_organizer: bool = False
     created_at: datetime
     updated_at: datetime
 

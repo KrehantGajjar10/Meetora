@@ -167,7 +167,7 @@ export default function OrganizerEvents() {
 
   return (
     <OrganizerLayout>
-      <div className="mx-auto max-w-300 w-full px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl w-full px-4 py-8 sm:px-6 lg:px-8">
         {/* Page Header */}
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>

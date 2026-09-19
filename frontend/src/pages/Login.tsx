@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/lib/api';
-import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
+import ThemeToggle from '@/components/ThemeToggle';
+import { CheckCircle2, AlertCircle, ArrowLeft } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z
@@ -21,9 +21,14 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Success message if routed from registration page
+  const registeredSuccess = (location.state as { registered?: boolean; message?: string } | null)
+    ?.registered;
 
   const {
     register,
@@ -60,82 +65,119 @@ export default function Login() {
 
       const { access_token } = await response.json();
       login(access_token);
-      navigate('/');
+
+      // Inspect whether user is an organizer by querying /me
+      try {
+        const meRes = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.is_organizer) {
+            navigate('/organizer');
+            return;
+          }
+        }
+      } catch {
+        // Default to /events on failure
+      }
+
+      navigate('/events');
     } catch (err: any) {
       setError(err.message || 'Failed to sign in. Please try again.');
     }
   };
 
   return (
-    <div className="min-h-screen bg-app-bg text-text-primary antialiased flex flex-col justify-between">
-      <Navbar />
+    <div className="flex min-h-screen flex-col justify-between bg-app-bg text-text-primary antialiased">
+      {/* Focused Auth Header */}
+      <header className="flex h-16 items-center justify-between px-6 sm:px-10">
+        <Link
+          to="/"
+          className="flex items-center gap-2.5 rounded-lg p-1 text-text-secondary transition-colors hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-white shadow-xs">
+            <span
+              className="material-symbols-outlined text-[16px]"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
+              calendar_month
+            </span>
+          </div>
+          <span className="text-sm font-bold tracking-tight text-text-primary">Meetora</span>
+        </Link>
+        <ThemeToggle />
+      </header>
 
-      <main className="flex flex-1 items-center justify-center px-5 py-12 sm:px-6 lg:px-8">
+      {/* Main Form Center */}
+      <main className="flex flex-1 items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
         <div className="w-full max-w-md">
-          {/* Login Card */}
-          <section className="overflow-hidden rounded-2xl border border-border bg-surface px-6 py-8 sm:px-10 sm:py-10 shadow-[0_8px_30px_rgba(32,32,51,0.06)]">
+          {/* Card Container */}
+          <div className="rounded-2xl border border-border bg-surface p-6 shadow-sm sm:p-10">
             {/* Header */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold tracking-tight text-text-primary">
-                Welcome back
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
+                Sign in to Meetora
               </h1>
-              <p className="mt-2 text-sm text-text-secondary">
-                Sign in to continue to your Meetora account.
+              <p className="mt-2 text-xs text-text-secondary sm:text-sm">
+                Access your registrations, tickets, or organizer dashboard.
               </p>
             </div>
 
-            {/* Error Alert */}
-            {error && (
+            {/* Registration Success Banner */}
+            {registeredSuccess && (
               <div
-                className="mb-6 flex items-start gap-3 rounded-xl border border-status-danger/20 bg-status-danger/5 px-4 py-3.5"
-                role="alert"
+                className="mb-5 flex items-start gap-3 rounded-xl border border-status-success/30 bg-status-success-soft p-3.5 text-xs text-status-success"
+                role="status"
               >
-                <span className="material-symbols-outlined mt-0.5 shrink-0 text-[19px] text-status-danger">
-                  error
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-status-danger">
-                    Sign in failed
-                  </p>
-                  <p className="mt-1 text-[13px] leading-5 text-text-secondary">
-                    {error}
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-semibold">Account created successfully!</p>
+                  <p className="mt-0.5 text-text-secondary">
+                    Please sign in with your email and password.
                   </p>
                 </div>
               </div>
             )}
 
+            {/* Error Alert */}
+            {error && (
+              <div
+                className="mb-5 flex items-start gap-3 rounded-xl border border-status-danger/30 bg-status-danger-soft p-3.5 text-xs text-status-danger"
+                role="alert"
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-semibold">Sign in failed</p>
+                  <p className="mt-0.5 text-text-secondary">{error}</p>
+                </div>
+              </div>
+            )}
+
             {/* Form */}
-            <form
-              onSubmit={handleSubmit(onSubmit)}
-              className="flex flex-col gap-5"
-              noValidate
-            >
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               {/* Email */}
               <div>
                 <label
                   htmlFor="email"
-                  className="mb-2 block text-sm font-medium text-text-primary"
+                  className="mb-1.5 block text-xs font-semibold text-text-primary"
                 >
-                  Email
+                  Campus or Personal Email
                 </label>
                 <input
                   id="email"
                   type="email"
                   autoComplete="email"
-                  placeholder="you@example.com"
+                  placeholder="name@university.edu"
                   aria-invalid={errors.email ? 'true' : 'false'}
-                  className={`h-12 w-full rounded-[10px] border bg-surface px-4 text-sm text-text-primary outline-none transition-colors placeholder:text-text-secondary/60 ${
-                    errors.email
-                      ? 'border-status-danger focus:border-status-danger focus:ring-4 focus:ring-status-danger/10'
-                      : 'border-border hover:border-text-secondary/40 focus:border-primary focus:ring-4 focus:ring-primary-soft'
+                  className={`field-control h-11 text-xs ${
+                    errors.email ? 'border-status-danger' : ''
                   }`}
                   {...register('email')}
                 />
                 {errors.email && (
-                  <p className="mt-2 flex items-center gap-1.5 text-[13px] font-medium text-status-danger">
-                    <span className="material-symbols-outlined text-[15px]">
-                      error
-                    </span>
+                  <p className="mt-1 text-[11px] font-medium text-status-danger">
                     {errors.email.message}
                   </p>
                 )}
@@ -145,42 +187,35 @@ export default function Login() {
               <div>
                 <label
                   htmlFor="password"
-                  className="mb-2 block text-sm font-medium text-text-primary"
+                  className="mb-1.5 block text-xs font-semibold text-text-primary"
                 >
                   Password
                 </label>
-                <div className="relative flex items-center">
+                <div className="relative">
                   <input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
-                    placeholder="Enter your password"
+                    placeholder="Enter password"
                     aria-invalid={errors.password ? 'true' : 'false'}
-                    className={`h-12 w-full rounded-[10px] border bg-surface pl-4 pr-12 text-sm text-text-primary outline-none transition-colors placeholder:text-text-secondary/60 ${
-                      errors.password
-                        ? 'border-status-danger focus:border-status-danger focus:ring-4 focus:ring-status-danger/10'
-                        : 'border-border hover:border-text-secondary/40 focus:border-primary focus:ring-4 focus:ring-primary-soft'
+                    className={`field-control h-11 pr-10 text-xs ${
+                      errors.password ? 'border-status-danger' : ''
                     }`}
                     {...register('password')}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    aria-label={
-                      showPassword ? 'Hide password' : 'Show password'
-                    }
-                    className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-primary-soft hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary-soft"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
                   >
-                    <span className="material-symbols-outlined flex items-center justify-center text-[19px]">
+                    <span className="material-symbols-outlined text-[18px]">
                       {showPassword ? 'visibility_off' : 'visibility'}
                     </span>
                   </button>
                 </div>
                 {errors.password && (
-                  <p className="mt-2 flex items-center gap-1.5 text-[13px] font-medium text-status-danger">
-                    <span className="material-symbols-outlined text-[15px]">
-                      error
-                    </span>
+                  <p className="mt-1 text-[11px] font-medium text-status-danger">
                     {errors.password.message}
                   </p>
                 )}
@@ -190,11 +225,11 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-primary px-5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus:outline-none focus:ring-4 focus:ring-primary-soft disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-primary disabled:hover:shadow-sm"
+                className="button-primary h-11 w-full text-xs font-semibold"
               >
                 {isSubmitting ? (
                   <>
-                    <span className="h-4.5 w-4.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
                     <span>Signing in...</span>
                   </>
                 ) : (
@@ -202,24 +237,31 @@ export default function Login() {
                 )}
               </button>
             </form>
-          </section>
 
-          {/* Footer Link (Moved outside the card) */}
-          <div className="mt-6 text-center">
-            <p className="flex items-center justify-center gap-1.5 text-sm text-text-secondary">
-              <span>Don't have an account?</span>
-              <Link
-                to="/register"
-                className="font-medium text-primary transition-colors hover:text-primary-hover hover:underline"
-              >
-                Create account
-              </Link>
-            </p>
+            {/* Test Credentials Helper Hint */}
+            <div className="mt-6 rounded-lg border border-border bg-app-bg p-3 text-[11px] text-text-secondary">
+              <p className="font-semibold text-text-primary">Organizer Demo Account:</p>
+              <p className="mt-0.5 font-mono">organizer@meetora.com / Organizer123!</p>
+            </div>
+          </div>
+
+          {/* Footer Link */}
+          <div className="mt-6 text-center text-xs text-text-secondary">
+            <span>Don't have an account? </span>
+            <Link
+              to="/register"
+              className="font-semibold text-primary hover:text-primary-hover hover:underline"
+            >
+              Create account
+            </Link>
           </div>
         </div>
       </main>
 
-      <Footer />
+      {/* Minimal Bottom Bar */}
+      <footer className="py-4 text-center text-[11px] text-text-muted">
+        © 2026 Meetora Platform. All rights reserved.
+      </footer>
     </div>
   );
 }

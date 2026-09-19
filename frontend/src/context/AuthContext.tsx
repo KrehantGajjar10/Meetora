@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { apiFetch } from '@/lib/api';
 
 export interface User {
@@ -6,6 +6,7 @@ export interface User {
   email: string;
   full_name: string;
   is_active: boolean;
+  is_organizer: boolean;
 }
 
 interface AuthContextType {
@@ -23,6 +24,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(localStorage.getItem('meetora_access_token'));
   const [isLoading, setIsLoading] = useState(true);
 
+  const logout = useCallback(() => {
+    localStorage.removeItem('meetora_access_token');
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  const login = useCallback((newToken: string) => {
+    localStorage.setItem('meetora_access_token', newToken);
+    setToken(newToken);
+  }, []);
+
   useEffect(() => {
     async function loadUser() {
       if (token) {
@@ -37,18 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     }
     loadUser();
-  }, [token]);
-
-  const login = (newToken: string) => {
-    localStorage.setItem('meetora_access_token', newToken);
-    setToken(newToken);
-  };
-
-  const logout = () => {
-    localStorage.removeItem('meetora_access_token');
-    setToken(null);
-    setUser(null);
-  };
+  }, [token, logout]);
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>

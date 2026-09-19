@@ -12,6 +12,8 @@ import {
   HelpCircle,
 } from 'lucide-react';
 
+import ThemeToggle from '@/components/ThemeToggle';
+
 interface OrganizerLayoutProps {
   children: ReactNode;
 }
@@ -71,13 +73,16 @@ export default function OrganizerLayout({ children }: OrganizerLayoutProps) {
             Organizer
           </span>
         </div>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="rounded-lg p-2 text-text-secondary hover:bg-app-bg hover:text-text-primary"
-          aria-label="Toggle Navigation"
-        >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="rounded-lg p-2 text-text-secondary hover:bg-app-bg hover:text-text-primary"
+            aria-label="Toggle Navigation"
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </header>
 
       <div className="flex flex-1">
@@ -175,13 +180,16 @@ export default function OrganizerLayout({ children }: OrganizerLayoutProps) {
                 <Eye className="h-3.5 w-3.5" />
                 <span>Attendee View</span>
               </Link>
-              <button
-                onClick={logout}
-                className="flex items-center gap-1 text-text-secondary transition-colors hover:text-status-danger"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                <span>Sign out</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+                <button
+                  onClick={logout}
+                  className="flex items-center gap-1 text-text-secondary transition-colors hover:text-status-danger"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span>Sign out</span>
+                </button>
+              </div>
             </div>
           </div>
         </aside>
