@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     # PostgreSQL Database URL
     DATABASE_URL: str = "postgresql://meetora_user:meetora_password@localhost:5432/meetora_db"
 
+    # JWT Config
+    SECRET_KEY: str = "meetora-super-secret-key-change-in-production"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 1 day
+
     # CORS configuration
     CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:5173",
