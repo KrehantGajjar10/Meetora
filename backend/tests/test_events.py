@@ -15,6 +15,7 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
 def override_get_db():
@@ -201,4 +202,122 @@ def test_registration_flow_and_rules():
     # Verify event count decremented back to 20
     event_after_cancel = client.get(f"/api/events/{EVENT1_ID}")
     assert event_after_cancel.json()["registered_count"] == 20
+
+
+def test_organizer_endpoints_and_authorization():
+    """Verify Organizer Overview, My Events, Create, Edit, Status toggle, and authorization isolation."""
+    from app.core import security
+    from app.models.user import User
+
+    db = TestingSessionLocal()
+    org1_id = uuid.uuid4()
+    org2_id = uuid.uuid4()
+
+    org1 = User(
+        id=org1_id,
+        email=f"org1_{org1_id.hex[:6]}@example.com",
+        full_name="Lead Organizer",
+        hashed_password=security.get_password_hash("password123"),
+        is_active=True
+    )
+    org2 = User(
+        id=org2_id,
+        email=f"org2_{org2_id.hex[:6]}@example.com",
+        full_name="Secondary Organizer",
+        hashed_password=security.get_password_hash("password123"),
+        is_active=True
+    )
+    db.add_all([org1, org2])
+    db.commit()
+    db.close()
+
+    token1 = security.create_access_token(org1_id)
+    token2 = security.create_access_token(org2_id)
+    headers1 = {"Authorization": f"Bearer {token1}"}
+    headers2 = {"Authorization": f"Bearer {token2}"}
+
+    # 1. Organizer Overview (initial state)
+    ov_resp = client.get("/api/events/organizer/overview", headers=headers1)
+    assert ov_resp.status_code == 200
+    ov_data = ov_resp.json()
+    assert "total_events" in ov_data
+    assert "published_events" in ov_data
+    assert "upcoming_events" in ov_data
+
+    # 2. Organizer 1 creates an event (published)
+    now = datetime.utcnow()
+    event_payload = {
+        "title": "Org 1 Distributed Systems Talk",
+        "description": "Deep dive into distributed transactions and replication.",
+        "category": "Technology & Engineering",
+        "start_time": (now + timedelta(days=10)).isoformat(),
+        "end_time": (now + timedelta(days=10, hours=2)).isoformat(),
+        "location": "Innovation Hall 101",
+        "is_online": False,
+        "capacity": 40,
+        "host_name": "Org 1 Club",
+        "status": "Published"
+    }
+    create_resp = client.post("/api/events", json=event_payload, headers=headers1)
+    assert create_resp.status_code == 201
+    created_event = create_resp.json()
+    event_id = created_event["id"]
+    assert created_event["organizer_id"] == str(org1_id)
+    assert created_event["title"] == "Org 1 Distributed Systems Talk"
+
+    # 3. Organizer 1 creates a draft event
+    draft_payload = {
+        "title": "Org 1 Secret Draft Hackathon",
+        "description": "Unpublished draft event.",
+        "category": "Hackathons & Competitions",
+        "start_time": (now + timedelta(days=15)).isoformat(),
+        "end_time": (now + timedelta(days=16)).isoformat(),
+        "location": "TBD",
+        "is_online": True,
+        "capacity": 100,
+        "status": "Draft"
+    }
+    draft_resp = client.post("/api/events", json=draft_payload, headers=headers1)
+    assert draft_resp.status_code == 201
+    draft_id = draft_resp.json()["id"]
+
+    # 4. Verify public Explore Events does NOT include the draft event
+    public_resp = client.get("/api/events")
+    assert public_resp.status_code == 200
+    public_ids = [e["id"] for e in public_resp.json()]
+    assert event_id in public_ids
+    assert draft_id not in public_ids
+
+    # 5. Organizer 1 queries My Events with status filter
+    my_events_all = client.get("/api/events/organizer/my-events", headers=headers1)
+    assert my_events_all.status_code == 200
+    all_events = my_events_all.json()
+    assert any(e["id"] == event_id for e in all_events)
+    assert any(e["id"] == draft_id for e in all_events)
+
+    my_events_drafts = client.get("/api/events/organizer/my-events?status=draft", headers=headers1)
+    assert my_events_drafts.status_code == 200
+    draft_events = my_events_drafts.json()
+    assert any(e["id"] == draft_id for e in draft_events)
+    assert not any(e["id"] == event_id for e in draft_events)
+
+    # 6. Organizer 1 updates their own event -> succeeds
+    update_payload = {"title": "Org 1 Distributed Systems Masterclass"}
+    update_resp = client.put(f"/api/events/{event_id}", json=update_payload, headers=headers1)
+    assert update_resp.status_code == 200
+    assert update_resp.json()["title"] == "Org 1 Distributed Systems Masterclass"
+
+    # 7. Authorization Isolation: Organizer 2 attempts to edit Organizer 1's event -> 403 Forbidden!
+    unauth_edit = client.put(f"/api/events/{event_id}", json={"title": "Hacked Title"}, headers=headers2)
+    assert unauth_edit.status_code == 403
+    assert "permission" in unauth_edit.json()["detail"].lower()
+
+    # 8. Authorization Isolation: Organizer 2 attempts to toggle status of Organizer 1's event -> 403 Forbidden!
+    unauth_status = client.post(f"/api/events/{event_id}/status", json={"status": "Cancelled"}, headers=headers2)
+    assert unauth_status.status_code == 403
+
+    # 9. Organizer 1 toggles status of their event to Cancelled -> succeeds
+    status_resp = client.post(f"/api/events/{event_id}/status", json={"status": "Cancelled"}, headers=headers1)
+    assert status_resp.status_code == 200
+    assert status_resp.json()["status"] == "Cancelled"
 

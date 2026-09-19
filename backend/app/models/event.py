@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, Text
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
@@ -24,5 +25,8 @@ class Event(Base):
     image_url = Column(String, nullable=True)
     status = Column(String, default="Registration open")
     registration_deadline = Column(DateTime, nullable=True)
+    organizer_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    organizer = relationship("User", backref="organized_events")

@@ -9,6 +9,7 @@ export default function Navbar() {
   const links = [
     { to: '/events', label: 'Explore Events' },
     { to: '/registrations', label: 'My Registrations' },
+    { to: '/organizer', label: 'Organizer Hub' },
   ];
 
   return (

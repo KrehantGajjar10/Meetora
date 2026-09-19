@@ -25,6 +25,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.core.database import Base
 from app.core.config import settings
 from app.models.user import User  # Ensure models are imported
+from app.models.event import Event
+from app.models.registration import Registration
 
 target_metadata = Base.metadata
 
