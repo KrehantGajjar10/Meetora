@@ -65,9 +65,11 @@ export default function OrganizerLayout({ children }: OrganizerLayoutProps) {
       {/* Mobile Top Header */}
       <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-surface px-4 lg:hidden">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white shadow-sm">
-            <Calendar className="h-4 w-4" />
-          </div>
+          <img
+            src="/assets/meetora-logo.png"
+            alt="Meetora"
+            className="h-8 w-8 rounded-lg object-cover shadow-sm"
+          />
           <span className="text-lg font-bold tracking-tight text-text-primary">Meetora</span>
           <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
             Organizer
@@ -103,9 +105,11 @@ export default function OrganizerLayout({ children }: OrganizerLayoutProps) {
           <div className="p-6">
             {/* Brand Header */}
             <div className="mb-6 flex items-center gap-3 border-b border-border pb-6">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white shadow-sm">
-                <Calendar className="h-5 w-5" />
-              </div>
+              <img
+                src="/assets/meetora-logo.png"
+                alt="Meetora"
+                className="h-9 w-9 rounded-lg object-cover shadow-sm"
+              />
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-lg font-bold tracking-tight text-text-primary">Meetora</span>

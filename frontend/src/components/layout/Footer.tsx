@@ -6,6 +6,11 @@ export default function Footer() {
       <div className="page-shell flex flex-col items-center justify-between gap-5 py-8 sm:py-10 md:flex-row">
         {/* Brand & Copyright */}
         <div className="flex items-center gap-3">
+          <img
+            src="/assets/meetora-logo.png"
+            alt="Meetora"
+            className="h-7 w-7 rounded-lg object-cover"
+          />
           <span className="text-base font-bold tracking-tight text-text-primary">Meetora</span>
           <span className="text-border hidden sm:inline">|</span>
           <span className="text-label-md text-text-secondary">

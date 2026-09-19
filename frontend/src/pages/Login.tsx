@@ -64,7 +64,7 @@ export default function Login() {
       }
 
       const { access_token } = await response.json();
-      login(access_token);
+      await login(access_token);
       navigate('/events');
     } catch (err: any) {
       setError(err.message || 'Failed to sign in. Please try again.');
@@ -80,14 +80,11 @@ export default function Login() {
           className="flex items-center gap-2.5 rounded-lg p-1 text-text-secondary transition-colors hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         >
           <ArrowLeft className="h-4 w-4" />
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-white shadow-xs">
-            <span
-              className="material-symbols-outlined text-[16px]"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              calendar_month
-            </span>
-          </div>
+          <img
+            src="/assets/meetora-logo.png"
+            alt="Meetora"
+            className="h-7 w-7 rounded-lg object-cover shadow-xs"
+          />
           <span className="text-sm font-bold tracking-tight text-text-primary">Meetora</span>
         </Link>
         <ThemeToggle />

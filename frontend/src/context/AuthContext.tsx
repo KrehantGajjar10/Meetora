@@ -12,7 +12,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (token: string) => void;
+  login: (token: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -20,8 +20,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [initialToken] = useState<string | null>(() => localStorage.getItem('meetora_access_token'));
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('meetora_access_token'));
+  const [token, setToken] = useState<string | null>(initialToken);
   const [isLoading, setIsLoading] = useState(true);
 
   const logout = useCallback(() => {
@@ -30,14 +31,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  const login = useCallback((newToken: string) => {
+  const login = useCallback(async (newToken: string) => {
     localStorage.setItem('meetora_access_token', newToken);
     setToken(newToken);
-  }, []);
+    setIsLoading(true);
+
+    try {
+      const userData = await apiFetch<User>('/api/auth/me');
+      setUser(userData);
+    } catch (error) {
+      console.error('Failed to load authenticated user', error);
+      logout();
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [logout]);
 
   useEffect(() => {
     async function loadUser() {
-      if (token) {
+      if (initialToken) {
         try {
           const userData = await apiFetch<User>('/api/auth/me');
           setUser(userData);
@@ -48,8 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setIsLoading(false);
     }
-    loadUser();
-  }, [token, logout]);
+    void loadUser();
+  }, [initialToken, logout]);
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>

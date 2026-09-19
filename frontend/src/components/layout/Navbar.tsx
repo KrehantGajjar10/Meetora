@@ -31,14 +31,11 @@ export default function Navbar() {
             to={brandDestination}
             className="flex items-center gap-2.5 rounded-lg p-1 focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-sm">
-              <span
-                className="material-symbols-outlined text-[20px]"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                calendar_month
-              </span>
-            </div>
+            <img
+              src="/assets/meetora-logo.png"
+              alt="Meetora"
+              className="h-9 w-9 shrink-0 rounded-xl object-cover shadow-sm"
+            />
             <span className="text-lg font-bold tracking-tight text-text-primary sm:text-xl">
               Meetora
             </span>

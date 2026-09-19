@@ -1,210 +1,286 @@
-# Meetora — Smart Event & Workshop Management Platform
+# Meetora
 
-Meetora is a centralized event and workshop management platform tailored for campus communities, student associations, academic departments, and professional workshops. It streamlines the complete event lifecycle: discovery, registration, waitlists, attendee management, ticket verification, check-in, and post-event analytics.
+Meetora is a full-stack event discovery and registration platform for campus communities. Attendees can discover and register for published events, while organizers can create, publish, manage, and check in attendees from a protected workspace.
 
-> **Chapter 1 Status:** Project Foundation established. Clean, runnable frontend and backend architectures configured for decoupled, parallel development.
+## Why Meetora
 
----
+- **One workflow:** discover events, view details, register, receive a ticket code, and manage registrations.
+- **Two roles:** attendee experiences stay simple; organizer tools are protected by role-based access control.
+- **Real data:** events, users, registrations, waitlists, and check-ins are persisted in PostgreSQL through a FastAPI API.
 
-## Architecture Overview
+## Features
+
+### Attendees
+
+- Create an account and sign in with JWT authentication
+- Browse published organizer events
+- Search by title or description and filter by category, date, and availability
+- View event details, capacity, location, and schedule
+- Register for available events or join a waitlist when capacity is reached
+- Cancel registrations
+- View registrations, ticket codes, and check-in status
+
+### Organizers
+
+- Organizer-only dashboard and event workspace
+- Create and edit events
+- Save drafts and publish events
+- Update event status
+- View attendee and registration information
+- Search attendee records and manage check-in
+- Role-protected organizer routes
+
+## Tech Stack
+
+| Layer | Technologies |
+|---|---|
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Router |
+| Forms and validation | React Hook Form, Zod |
+| Backend | Python 3.12, FastAPI, Uvicorn |
+| Data | SQLAlchemy, PostgreSQL 16, Alembic |
+| Authentication | JWT, Passlib Argon2 |
+| Infrastructure | Docker Compose |
+
+
+## Project Structure
 
 ```text
 MeetoraKG/
-├── .gitignore               # Ignored files for Python, Node, environment, and containers
-├── README.md                # Project documentation and setup guide
-├── docker-compose.yml       # Local development orchestration (PostgreSQL 16 + FastAPI)
-├── .env.example             # Root example environment configuration for Docker Compose
-├── backend/                 # Python FastAPI Backend
-│   ├── .env.example         # Backend environment variables template
-│   ├── .python-version      # Python version pin (3.12)
-│   ├── Dockerfile           # Multi-stage container definition using Python 3.12-slim & uv
-│   ├── pyproject.toml       # Python package dependencies managed via uv
+├── backend/
 │   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py          # FastAPI application entrypoint with CORS & routes
-│   │   ├── core/
-│   │   │   ├── config.py    # Pydantic Settings environment configuration
-│   │   │   └── database.py  # SQLAlchemy engine & session factory
-│   │   └── api/
-│   │       └── v1/
-│   │           └── endpoints/
-│   │               └── health.py # GET /api/health endpoint
-│   └── tests/
-│       └── test_health.py   # Automated pytest tests for health endpoints
-└── frontend/                # React TypeScript Frontend (Vite)
-    ├── .env.example         # Frontend environment variables template
-    ├── index.html           # Single-page app HTML shell with Inter typography
-    ├── package.json         # Node.js dependencies and scripts
-    ├── tsconfig.json        # TypeScript root configuration
-    ├── tsconfig.app.json    # Application TypeScript configuration with @/* path alias
-    ├── vite.config.ts       # Vite configuration with path aliases & dev server settings
-    └── src/
-        ├── index.css        # Approved Meetora design tokens (Clean Academic palette)
-        ├── main.tsx         # React root rendering
-        ├── App.tsx          # Minimal foundation view with live API health check
-        └── lib/
-            ├── api.ts       # Centralized API fetch client using VITE_API_BASE_URL
-            └── utils.ts     # Styling and class name combination utility
+│   │   ├── api/v1/endpoints/   # Auth, events, registrations, check-in
+│   │   ├── models/             # User, Event, Registration
+│   │   ├── schemas/            # Pydantic request/response models
+│   │   └── core/               # Settings, database, security
+│   ├── app/alembic/            # Database migrations
+│   └── tests/                  # Backend tests
+├── frontend/
+│   └── src/
+│       ├── pages/              # Attendee and organizer screens
+│       ├── components/         # Shared layout and UI components
+│       ├── context/            # Auth and theme state
+│       └── lib/api.ts          # Native fetch API client
+├── docker-compose.yml
+└── .env.example
 ```
 
----
+## System Architecture
 
-## Prerequisites
+```mermaid
+flowchart LR
+    B[Browser<br/>React + Vite] -->|Native fetch<br/>Bearer JWT| API[FastAPI API<br/>/api]
+    API --> AUTH[JWT authentication<br/>role authorization]
+    API --> ORM[SQLAlchemy]
+    ORM --> DB[(PostgreSQL)]
+    MIG[Alembic migrations] --> DB
+```
 
-Ensure you have the following installed on your system:
+The frontend uses `VITE_API_BASE_URL` to reach the backend. The backend validates JWTs, enforces attendee/organizer permissions, applies public event filtering, and persists all changes in PostgreSQL.
 
-| Tool | Recommended Version | Verification Command |
-|---|---|---|
-| **Node.js** | `>= 18.x` (Tested: `v24.15.0`) | `node -v` |
-| **npm** | `>= 9.x` (Tested: `11.12.1`) | `npm -v` |
-| **uv** | `>= 0.4.x` (Tested: `0.11.26`) | `uv --version` |
-| **Python** | `3.12.x` (Managed automatically by `uv`) | `uv python list` |
-| **Docker Desktop** | `>= 24.x` (Tested: `29.6.1`) | `docker --version` |
+## Database Architecture
 
-> **Note on Python 3.12 Selection:** While Python 3.14 may be installed on your system, Python 3.12 is explicitly pinned for the backend (`backend/.python-version`). Python 3.12 has mature, pre-built binary wheels for core C-dependencies (`psycopg2-binary`, `pydantic-core`, `uvicorn`) and official production Docker images (`python:3.12-slim`), preventing compiler errors and build failures.
+The implemented schema contains three core tables:
 
----
+- **users** — account details, password hash, active state, and `is_organizer`.
+- **events** — event content, schedule, capacity, status, image URL, and optional `organizer_id` referencing `users`.
+- **registrations** — user/event relationship, registration status (`confirmed`, `waitlist`, or `cancelled`), unique ticket code, and check-in fields.
 
-## Local Development Setup
+Important constraints:
 
-Open your terminal (e.g. PowerShell on Windows) in the project root:
+- User emails are unique.
+- A user can have only one registration record per event.
+- Event deletion cascades to registrations.
+- Removing an organizer does not delete the event (`organizer_id` is set to `NULL`).
+- Public event discovery includes published/available organizer-owned events, not drafts.
+
+```mermaid
+erDiagram
+    USERS ||--o{ EVENTS : organizes
+    USERS ||--o{ REGISTRATIONS : creates
+    EVENTS ||--o{ REGISTRATIONS : receives
+
+    USERS {
+        uuid id PK
+        string email UK
+        string full_name
+        string hashed_password
+        boolean is_active
+        boolean is_organizer
+        datetime created_at
+        datetime updated_at
+    }
+
+    EVENTS {
+        uuid id PK
+        string title
+        text description
+        string category
+        datetime start_time
+        datetime end_time
+        string location
+        boolean is_online
+        integer capacity
+        integer registered_count
+        string host_name
+        string host_logo_text
+        string image_url
+        string status
+        datetime registration_deadline
+        uuid organizer_id FK
+        datetime created_at
+        datetime updated_at
+    }
+
+    REGISTRATIONS {
+        uuid id PK
+        uuid user_id FK
+        uuid event_id FK
+        string status
+        string ticket_code UK
+        boolean is_checked_in
+        datetime checked_in_at
+        datetime created_at
+        datetime updated_at
+    }
+```
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js and npm
+- Python 3.12
+- PostgreSQL 16, Docker Desktop
+- `uv` for backend dependency management
+
+### 1. Configure the environment
+
+From the repository root:
+
 ```powershell
-cd C:\Users\HP\VSCodeProjectsKrehant\MeetoraKG
+Copy-Item .env.example .env
 ```
 
-### 1. Backend Setup (`backend/`)
+For a local frontend/backend setup, copy the frontend template too:
 
-1. **Navigate to the backend directory:**
-   ```powershell
-   cd backend
-   ```
-
-2. **Create your local environment file:**
-   ```powershell
-   Copy-Item .env.example .env
-   ```
-
-3. **Install dependencies and sync virtual environment using `uv`:**
-   ```powershell
-   uv sync --python 3.12
-   ```
-
-4. **Run the backend automated tests:**
-   ```powershell
-   uv run pytest tests/
-   ```
-
-5. **Start the FastAPI development server:**
-   ```powershell
-   uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-   ```
-   The backend API will be available at:
-   - **Interactive API Docs (Swagger):** [http://127.0.0.1:8000/api/docs](http://127.0.0.1:8000/api/docs)
-   - **Alternative Docs (ReDoc):** [http://127.0.0.1:8000/api/redoc](http://127.0.0.1:8000/api/redoc)
-   - **Health Check:** [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
-
----
-
-### 2. Frontend Setup (`frontend/`)
-
-In a **second** terminal window:
-
-1. **Navigate to the frontend directory:**
-   ```powershell
-   cd C:\Users\HP\VSCodeProjectsKrehant\MeetoraKG\frontend
-   ```
-
-2. **Create your local environment file:**
-   ```powershell
-   Copy-Item .env.example .env
-   ```
-
-3. **Install base dependencies:**
-   ```powershell
-   npm install
-   ```
-
-4. **Verify build and type-checking:**
-   ```powershell
-   npm run build
-   ```
-
-5. **Start the Vite development server:**
-   ```powershell
-   npm run dev
-   ```
-   Open your browser at: [http://localhost:5173](http://localhost:5173)
-
-   The page displays the Meetora Chapter 1 foundation view with a live API ping testing connection to `http://127.0.0.1:8000/api/health`.
-
----
-
-## Verifying the API Health Endpoint
-
-You can test the API health check from PowerShell or any HTTP client:
-
-### Basic Health Check (API Service Status)
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/health" | ConvertTo-Json
-```
-**Expected Response:**
-```json
-{
-  "status": "healthy",
-  "service": "Meetora API",
-  "version": "0.1.0",
-  "environment": "development"
-}
+Copy-Item frontend\.env.example frontend\.env
 ```
 
-### Health Check with Explicit Database Probe
+The default local API URL is `http://localhost:8000`.
+
+### 2. Start PostgreSQL and the API
+
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/health?check_db=true" | ConvertTo-Json
+docker compose up -d db api
 ```
-- If PostgreSQL is offline, it safely reports: `"database": { "connected": false, "status": "unavailable" }`.
-- If PostgreSQL is online, it reports: `"database": { "connected": true, "status": "healthy" }`.
 
----
+Docker Compose starts PostgreSQL and the FastAPI API. The frontend is run locally with Vite because the Compose file does not define a frontend service.
 
-## Running with Docker Compose
+Apply migrations from the backend directory after PostgreSQL is available:
 
-To run the PostgreSQL database and FastAPI backend together in isolated containers:
+```powershell
+cd backend
+Copy-Item .env.example .env
+uv sync --python 3.12
+uv run alembic upgrade head
+```
 
-1. **Copy the root environment template:**
-   ```powershell
-   Copy-Item .env.example .env
-   ```
+Or run the backend directly:
 
-2. **Validate the compose configuration:**
-   ```powershell
-   docker compose config
-   ```
+```powershell
+cd backend
+Copy-Item .env.example .env
+uv sync --python 3.12
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
 
-3. **Start the database and backend services:**
-   ```powershell
-   docker compose up -d
-   ```
+### 3. Start the frontend
 
-4. **Check running container status:**
-   ```powershell
-   docker compose ps
-   ```
+In a second terminal:
 
-5. **Stop the services when finished:**
-   ```powershell
-   docker compose down
-   ```
+```powershell
+cd frontend
+npm install
+npm run dev
+```
 
----
+Open **http://localhost:5173**.
 
-## Design System & Styling Notice
+## Application URLs
 
-- Frontend styles in `frontend/src/index.css` define the approved **Meetora Clean Academic** design tokens (`#5B5BD6` primary, `#F7F7FB` app background, `#202033` text primary, `Inter` typography).
-- Tailwind CSS setup is reserved for manual configuration with Tailwind CSS v4.3.
+| Purpose | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| API health | http://localhost:8000/api/health |
+| Swagger docs | http://localhost:8000/api/docs |
+| ReDoc | http://localhost:8000/api/redoc |
+| Attendee events | http://localhost:5173/events |
+| Organizer workspace | http://localhost:5173/organizer |
 
----
+## Demo Organizer Account
 
-## Chapter Roadmap
+The development seed script provides:
 
-- **Chapter 1 (Complete):** Project foundation, folder layout, FastAPI health endpoint, React/Vite scaffolding, environment variable templates, Docker Compose configuration.
-- **Chapter 2:** Database models, Alembic migrations, PostgreSQL schema (Users, Events, Registrations), and authentication system with Passlib Argon2.
+```text
+Email:    organizer@meetora.com
+Password: Organizer123!
+```
+
+## Application Workflow
+
+```text
+Register / Sign in
+        │
+        ├── Attendee → Explore → Event details → Register / Waitlist → My Registrations
+        │
+        └── Organizer → Dashboard → Create draft → Publish → Manage attendees → Check in
+```
+
+## API Overview
+
+| Area | Main routes |
+|---|---|
+| Auth | `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me` |
+| Public events | `GET /api/events`, `GET /api/events/{event_id}` |
+| Organizer events | `GET /api/events/organizer/my-events`, `POST /api/events`, `PUT /api/events/{event_id}` |
+| Registration | `GET /api/events/{event_id}/registration`, `POST /api/events/{event_id}/register`, `DELETE /api/events/{event_id}/register` |
+| Attendee list | `GET /api/registrations/me` |
+| Organizer operations | `GET /api/events/{event_id}/attendees`, `POST /api/events/{event_id}/status`, `GET /api/events/{event_id}/check-in/lookup`, `POST /api/events/{event_id}/check-in` |
+
+All protected routes require the JWT returned by `/api/auth/login` in the `Authorization` header using the `Bearer` scheme.
+
+## Migrations and Tests
+
+Run migrations:
+
+```powershell
+cd backend
+uv run alembic upgrade head
+```
+
+Run backend tests:
+
+```powershell
+uv run pytest
+```
+
+Run frontend checks:
+
+```powershell
+cd frontend
+npm run lint
+npm run build
+```
+
+## Troubleshooting
+
+- **API connection errors:** confirm the backend is running on port `8000` and that `frontend/.env` points to the same URL.
+- **Database errors:** check `docker compose ps`, then inspect `docker compose logs db api`.
+- **CORS errors:** ensure the frontend origin is included in `CORS_ORIGINS`.
+- **Missing public events:** only published events owned by organizer accounts are shown publicly; drafts remain in the organizer workspace.
+
+## Author
+
+Meetora — Gajjar Krehant
