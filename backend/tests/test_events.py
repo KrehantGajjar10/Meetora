@@ -7,6 +7,7 @@ import uuid
 from app.main import app
 from app.core.database import Base, get_db
 from app.models.event import Event
+from app.models.user import User
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_events.db"
 
@@ -31,10 +32,23 @@ client = TestClient(app)
 
 EVENT1_ID = uuid.uuid4()
 EVENT2_ID = uuid.uuid4()
+ORGANIZER_ID = uuid.uuid4()
 
 def setup_module():
     db = TestingSessionLocal()
     db.query(Event).delete()
+    db.query(User).delete()
+    db.add(
+        User(
+            id=ORGANIZER_ID,
+            email="public-organizer@test.com",
+            full_name="Public Test Organizer",
+            hashed_password="test-hash",
+            is_active=True,
+            is_organizer=True,
+        )
+    )
+    db.commit()
     now = datetime.utcnow()
     events = [
         Event(
@@ -50,6 +64,7 @@ def setup_module():
             registered_count=20,
             host_name="ACM Student Chapter",
             host_logo_text="ACM",
+            organizer_id=ORGANIZER_ID,
             status="Registration open"
         ),
         Event(
@@ -65,6 +80,7 @@ def setup_module():
             registered_count=30,
             host_name="Campus UX Collective",
             host_logo_text="UX",
+            organizer_id=ORGANIZER_ID,
             status="Full"
         ),
     ]
@@ -508,5 +524,3 @@ def test_attendee_management_and_checkin():
     # 14. Verify updated check-in count in attendees overview
     final_ov = client.get(f"/api/events/{event_id}/attendees", headers=org_headers).json()
     assert final_ov["checked_in_count"] == 1
-
-

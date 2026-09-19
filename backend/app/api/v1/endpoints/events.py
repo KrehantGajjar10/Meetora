@@ -42,9 +42,22 @@ def read_events(
     category: Optional[str] = Query(default=None, description="Filter by category"),
 ) -> Any:
     """
-    Retrieve public events (excluding drafts).
+    Retrieve published events created by an organizer.
+
+    Events without an organizer owner are legacy/demo records and must not be
+    exposed through the public catalog. Drafts, cancelled events, and other
+    non-public lifecycle states are also excluded.
     """
-    query = db.query(Event).filter(or_(Event.status != "Draft", Event.status.is_(None)))
+    public_statuses = ("Published", "Registration open", "Full")
+    query = (
+        db.query(Event)
+        .join(User, Event.organizer_id == User.id)
+        .filter(
+            Event.organizer_id.is_not(None),
+            User.is_organizer.is_(True),
+            Event.status.in_(public_statuses),
+        )
+    )
     
     if search and search.strip():
         term = f"%{search.strip()}%"
@@ -791,5 +804,3 @@ def toggle_attendee_checkin(
         email=reg.user.email if reg.user else "",
         waitlist_position=None,
     )
-
-

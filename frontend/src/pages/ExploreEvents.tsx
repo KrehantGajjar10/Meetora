@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getEvents, type Event } from '@/lib/api';
+import EventImage from '@/components/EventImage';
 
 const categories = ['All', 'Technology', 'Design & UX', 'Workshops', 'Hackathons & Competitions', 'Career & Talks'];
 
@@ -187,13 +188,12 @@ export default function ExploreEvents() {
               return (
                 <article key={event.id} className="group flex cursor-pointer flex-col justify-between overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition-all hover:-translate-y-0.5 hover:border-outline-variant hover:shadow-md" onClick={() => navigate(`/events/${event.id}`)}>
                   <div>
-                    <div className="aspect-video relative overflow-hidden bg-app-bg">
-                      {event.image_url ? (
-                        <img src={event.image_url} alt={event.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-border">No Image</div>
-                      )}
-                    </div>
+                    <EventImage
+                      src={event.image_url}
+                      alt={event.title}
+                      category={event.category}
+                      aspectRatio="aspect-video"
+                    />
                     <div className="space-y-3.5 p-5">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="px-2.5 py-0.5 rounded-md text-metadata-sm font-metadata-sm bg-app-bg text-text-secondary border border-border">{event.category}</span>

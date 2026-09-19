@@ -336,7 +336,7 @@ export default function CreateEditEvent() {
               e.preventDefault();
               handleSubmit(true);
             }}
-            className="space-y-6 pb-28"
+            className="space-y-6"
           >
             {/* SECTION A: Basic Information */}
             <div className="rounded-xl border border-border bg-surface p-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)] sm:p-7">
@@ -776,9 +776,9 @@ export default function CreateEditEvent() {
               </div>
             </div>
 
-            {/* Sticky / Fixed Bottom Form Actions Bar */}
-            <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-surface/95 px-4 py-4 backdrop-blur-md shadow-[0_-4px_16px_rgba(32,32,51,0.06)] lg:pl-64">
-              <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 sm:flex-row">
+            {/* Form Actions */}
+            <div className="mt-8 border-t border-border pt-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <button
                   type="button"
                   onClick={() => {
@@ -786,7 +786,7 @@ export default function CreateEditEvent() {
                       navigate('/organizer/events');
                     }
                   }}
-                  className="w-full rounded-lg border border-border bg-transparent px-4 py-2.5 text-xs font-semibold text-text-primary hover:bg-app-bg transition-colors active:scale-[0.98] sm:w-auto"
+                  className="button-secondary w-full sm:w-auto"
                 >
                   Cancel
                 </button>
@@ -796,7 +796,7 @@ export default function CreateEditEvent() {
                     type="button"
                     onClick={() => handleSubmit(false)}
                     disabled={isSubmitting}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2.5 text-xs font-semibold text-text-primary shadow-sm hover:bg-app-bg transition-all active:scale-[0.98] disabled:opacity-50 sm:flex-none"
+                    className="button-secondary flex-1 sm:flex-none"
                   >
                     <Bookmark className="h-4 w-4 text-text-secondary" />
                     <span>Save Draft</span>
@@ -805,15 +805,15 @@ export default function CreateEditEvent() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-primary-hover transition-all active:scale-[0.98] disabled:opacity-50 sm:flex-none"
+                    className="button-primary flex-1 sm:flex-none"
                   >
                     <span>{isSubmitting ? 'Saving...' : 'Publish Event'}</span>
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>
               </div>
-              <div className="mx-auto mt-1 max-w-5xl text-center sm:text-right">
-                <p className="text-[11px] text-text-secondary">
+              <div className="mt-3 text-left sm:text-right">
+                <p className="text-xs text-text-secondary">
                   Published events immediately appear in the Explore Events catalog for student registrations.
                 </p>
               </div>

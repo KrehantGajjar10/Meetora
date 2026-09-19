@@ -65,23 +65,6 @@ export default function Login() {
 
       const { access_token } = await response.json();
       login(access_token);
-
-      // Inspect whether user is an organizer by querying /me
-      try {
-        const meRes = await fetch(`${API_BASE_URL}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${access_token}` },
-        });
-        if (meRes.ok) {
-          const meData = await meRes.json();
-          if (meData.is_organizer) {
-            navigate('/organizer');
-            return;
-          }
-        }
-      } catch {
-        // Default to /events on failure
-      }
-
       navigate('/events');
     } catch (err: any) {
       setError(err.message || 'Failed to sign in. Please try again.');

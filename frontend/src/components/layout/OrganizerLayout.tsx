@@ -94,9 +94,9 @@ export default function OrganizerLayout({ children }: OrganizerLayoutProps) {
           />
         )}
 
-        {/* Persistent Left Sidebar */}
+        {/* Persistent Left Sidebar - Sticky on desktop within viewport */}
         <aside
-          className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col justify-between border-r border-border bg-surface transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col justify-between overflow-y-auto border-r border-border bg-surface transition-transform duration-200 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:max-h-screen lg:self-start lg:translate-x-0 lg:shrink-0 ${
             mobileOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >

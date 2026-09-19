@@ -10,6 +10,7 @@ import {
   type Registration,
 } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import EventImage from '@/components/EventImage';
 
 export default function EventDetails() {
   const { id } = useParams<{ id: string }>();
@@ -220,11 +221,12 @@ export default function EventDetails() {
             <div className="lg:col-span-8 space-y-6">
               {/* Media Container */}
               <div className="w-full aspect-video rounded-xl overflow-hidden border border-border bg-app-bg relative">
-                {event.image_url ? (
-                  <img src={event.image_url} alt={event.title} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-border text-lg">No Image</div>
-                )}
+                <EventImage
+                  src={event.image_url}
+                  alt={event.title}
+                  category={event.category}
+                  aspectRatio="w-full h-full"
+                />
                 {event.is_online && (
                   <div className="absolute bottom-3 left-3 bg-surface/90 backdrop-blur-xs border border-border px-3 py-1 rounded-md text-metadata-sm font-metadata-sm text-text-primary font-medium shadow-xs flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-status-success text-[16px]">sensors</span>
