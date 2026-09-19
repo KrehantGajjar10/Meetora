@@ -368,10 +368,10 @@ export default function OrganizerOverview() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Link
-                              to={`/organizer/events/${ev.id}/edit`}
+                              to={isDraft ? `/organizer/events/${ev.id}/edit` : `/organizer/events/${ev.id}/attendees`}
                               className="rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-primary transition-colors hover:bg-app-bg"
                             >
-                              {isDraft ? 'Edit Draft' : 'Manage Event'}
+                              {isDraft ? 'Edit Draft' : 'Manage Attendees'}
                             </Link>
                             {isDraft ? (
                               <button
@@ -383,7 +383,7 @@ export default function OrganizerOverview() {
                               </button>
                             ) : (
                               <Link
-                                to={`/organizer/events/${ev.id}/edit`}
+                                to={`/organizer/events/${ev.id}/checkin`}
                                 className="flex items-center gap-1 rounded-lg bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
                               >
                                 <QrCode className="h-3.5 w-3.5" />

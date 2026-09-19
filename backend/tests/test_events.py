@@ -321,3 +321,172 @@ def test_organizer_endpoints_and_authorization():
     assert status_resp.status_code == 200
     assert status_resp.json()["status"] == "Cancelled"
 
+
+def test_attendee_management_and_checkin():
+    """Verify O04 Attendee Management and O05 Fast Check-in APIs."""
+    from app.core import security
+    from app.models.user import User
+
+    db = TestingSessionLocal()
+    org_id = uuid.uuid4()
+    att1_id = uuid.uuid4()
+    att2_id = uuid.uuid4()
+    att3_id = uuid.uuid4()
+    other_org_id = uuid.uuid4()
+
+    org_user = User(
+        id=org_id,
+        email=f"org_{org_id.hex[:6]}@example.com",
+        full_name="Desk Organizer",
+        hashed_password=security.get_password_hash("password123"),
+        is_active=True,
+    )
+    other_org = User(
+        id=other_org_id,
+        email=f"other_{other_org_id.hex[:6]}@example.com",
+        full_name="Other Organizer",
+        hashed_password=security.get_password_hash("password123"),
+        is_active=True,
+    )
+    att1 = User(
+        id=att1_id,
+        email=f"att1_{att1_id.hex[:6]}@example.com",
+        full_name="Alex Rivera",
+        hashed_password=security.get_password_hash("password123"),
+        is_active=True,
+    )
+    att2 = User(
+        id=att2_id,
+        email=f"att2_{att2_id.hex[:6]}@example.com",
+        full_name="Maya Lin",
+        hashed_password=security.get_password_hash("password123"),
+        is_active=True,
+    )
+    att3 = User(
+        id=att3_id,
+        email=f"att3_{att3_id.hex[:6]}@example.com",
+        full_name="Marcus Brody",
+        hashed_password=security.get_password_hash("password123"),
+        is_active=True,
+    )
+
+    db.add_all([org_user, other_org, att1, att2, att3])
+    db.commit()
+    db.close()
+
+    org_headers = {"Authorization": f"Bearer {security.create_access_token(org_id)}"}
+    other_headers = {"Authorization": f"Bearer {security.create_access_token(other_org_id)}"}
+    att1_headers = {"Authorization": f"Bearer {security.create_access_token(att1_id)}"}
+    att2_headers = {"Authorization": f"Bearer {security.create_access_token(att2_id)}"}
+    att3_headers = {"Authorization": f"Bearer {security.create_access_token(att3_id)}"}
+
+    # 1. Organizer creates event with capacity 2
+    create_payload = {
+        "title": "FastAPI Checkin Summit",
+        "description": "Deep dive into checkin workflows",
+        "category": "Technology",
+        "start_time": (datetime.utcnow() + timedelta(days=2)).isoformat(),
+        "end_time": (datetime.utcnow() + timedelta(days=2, hours=3)).isoformat(),
+        "location": "Auditorium Hall B",
+        "capacity": 2,
+        "is_online": False,
+        "status": "Published",
+    }
+    ev_resp = client.post("/api/events", json=create_payload, headers=org_headers)
+    assert ev_resp.status_code == 201
+    event_id = ev_resp.json()["id"]
+
+    # 2. Attendee 1 and Attendee 2 register -> both Confirmed
+    reg1 = client.post(f"/api/events/{event_id}/register", headers=att1_headers)
+    assert reg1.status_code == 201
+    assert reg1.json()["status"] == "confirmed"
+    tkt1 = reg1.json()["ticket_code"]
+    reg1_id = reg1.json()["id"]
+
+    reg2 = client.post(f"/api/events/{event_id}/register", headers=att2_headers)
+    assert reg2.status_code == 201
+    assert reg2.json()["status"] == "confirmed"
+    tkt2 = reg2.json()["ticket_code"]
+
+    # 3. Attendee 3 registers -> Event full -> Waitlisted
+    reg3 = client.post(f"/api/events/{event_id}/register", headers=att3_headers)
+    assert reg3.status_code == 201
+    assert reg3.json()["status"] == "waitlist"
+    tkt3 = reg3.json()["ticket_code"]
+
+    # 4. Organizer fetches attendees overview (O04)
+    ov_resp = client.get(f"/api/events/{event_id}/attendees", headers=org_headers)
+    assert ov_resp.status_code == 200
+    ov = ov_resp.json()
+    assert ov["event_id"] == event_id
+    assert ov["confirmed_count"] == 2
+    assert ov["waitlist_count"] == 1
+    assert ov["checked_in_count"] == 0
+    assert len(ov["attendees"]) == 3
+    assert len(ov["waitlist_queue"]) == 1
+    assert ov["waitlist_queue"][0]["full_name"] == "Marcus Brody"
+    assert ov["waitlist_queue"][0]["waitlist_position"] == 1
+
+    # 5. Filtering attendees by status
+    conf_only = client.get(f"/api/events/{event_id}/attendees?status=confirmed", headers=org_headers)
+    assert conf_only.status_code == 200
+    assert len(conf_only.json()["attendees"]) == 2
+
+    wl_only = client.get(f"/api/events/{event_id}/attendees?status=waitlist", headers=org_headers)
+    assert wl_only.status_code == 200
+    assert len(wl_only.json()["attendees"]) == 1
+
+    # 6. Searching attendees by name
+    search_resp = client.get(f"/api/events/{event_id}/attendees?search=Maya", headers=org_headers)
+    assert search_resp.status_code == 200
+    assert len(search_resp.json()["attendees"]) == 1
+    assert search_resp.json()["attendees"][0]["full_name"] == "Maya Lin"
+
+    # 7. Authorization isolation: other organizer cannot view roster -> 403
+    unauth_roster = client.get(f"/api/events/{event_id}/attendees", headers=other_headers)
+    assert unauth_roster.status_code == 403
+
+    # 8. Check-in Desk lookup (O05)
+    lookup_resp = client.get(f"/api/events/{event_id}/check-in/lookup?query=Rivera", headers=org_headers)
+    assert lookup_resp.status_code == 200
+    assert len(lookup_resp.json()) == 1
+    assert lookup_resp.json()[0]["full_name"] == "Alex Rivera"
+
+    # 9. Perform check-in by ticket code (O05)
+    ci_resp = client.post(f"/api/events/{event_id}/check-in", json={"ticket_code": tkt1}, headers=org_headers)
+    assert ci_resp.status_code == 200
+    ci_data = ci_resp.json()
+    assert ci_data["success"] is True
+    assert ci_data["already_checked_in"] is False
+    assert ci_data["attendee"]["is_checked_in"] is True
+    assert ci_data["attendee"]["checked_in_at"] is not None
+
+    # 10. Re-check-in same ticket -> already checked in
+    ci_dup = client.post(f"/api/events/{event_id}/check-in", json={"ticket_code": tkt1}, headers=org_headers)
+    assert ci_dup.status_code == 200
+    assert ci_dup.json()["already_checked_in"] is True
+
+    # 11. Attempt check-in on waitlisted attendee -> rejected 400
+    ci_wl = client.post(f"/api/events/{event_id}/check-in", json={"ticket_code": tkt3}, headers=org_headers)
+    assert ci_wl.status_code == 400
+    assert "waitlist" in ci_wl.json()["detail"].lower()
+
+    # 12. Attempt check-in invalid ticket -> 404
+    ci_invalid = client.post(f"/api/events/{event_id}/check-in", json={"ticket_code": "INVALID-TICKET-999"}, headers=org_headers)
+    assert ci_invalid.status_code == 404
+
+    # 13. Toggle check-in endpoint (Undo / Check-in)
+    toggle_resp = client.post(f"/api/events/{event_id}/attendees/{reg1_id}/toggle-checkin", headers=org_headers)
+    assert toggle_resp.status_code == 200
+    assert toggle_resp.json()["is_checked_in"] is False
+
+    # Toggle again -> True
+    toggle_resp2 = client.post(f"/api/events/{event_id}/attendees/{reg1_id}/toggle-checkin", headers=org_headers)
+    assert toggle_resp2.status_code == 200
+    assert toggle_resp2.json()["is_checked_in"] is True
+
+    # 14. Verify updated check-in count in attendees overview
+    final_ov = client.get(f"/api/events/{event_id}/attendees", headers=org_headers).json()
+    assert final_ov["checked_in_count"] == 1
+
+

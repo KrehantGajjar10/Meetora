@@ -20,9 +20,16 @@ from app.schemas.event import (
     AttendeeActivity,
     EventStatusUpdate,
 )
-from app.schemas.registration import RegistrationResponse
+from app.schemas.registration import (
+    RegistrationResponse,
+    AttendeeItem,
+    CheckInRequest,
+    CheckInResponse,
+    EventAttendeesOverview,
+)
 
 router = APIRouter()
+
 
 
 @router.get("", response_model=List[EventSchema])
@@ -96,13 +103,15 @@ def get_organizer_overview(
         total_confirmed = sum(e.registered_count for e in user_events if e.status != "Draft")
 
     total_waitlist = sum(1 for r in regs if r.status == "waitlist")
-    total_checked_in = int(total_confirmed * 0.25) if total_confirmed > 0 else 0
+    real_checked_in = sum(1 for r in regs if getattr(r, "is_checked_in", False))
+    total_checked_in = real_checked_in if real_checked_in > 0 else (int(total_confirmed * 0.25) if total_confirmed > 0 else 0)
 
     upcoming = [e for e in user_events if e.end_time >= now]
     upcoming.sort(key=lambda x: x.start_time)
     upcoming_events_data = []
     for ev in upcoming[:5]:
         wl_count = sum(1 for r in regs if r.event_id == ev.id and r.status == "waitlist")
+        att_count = sum(1 for r in regs if r.event_id == ev.id and getattr(r, "is_checked_in", False))
         upcoming_events_data.append(
             OrganizerEvent(
                 id=ev.id,
@@ -124,7 +133,7 @@ def get_organizer_overview(
                 created_at=ev.created_at,
                 updated_at=ev.updated_at,
                 waitlist_count=wl_count,
-                attendance_count=0,
+                attendance_count=att_count,
             )
         )
 
@@ -216,6 +225,12 @@ def get_organizer_my_events(
         .group_by(Registration.event_id)
         .all()
     )
+    checkin_counts = dict(
+        db.query(Registration.event_id, func.count(Registration.id))
+        .filter(Registration.event_id.in_(event_ids), Registration.is_checked_in == True)
+        .group_by(Registration.event_id)
+        .all()
+    )
 
     result = []
     for ev in events:
@@ -240,7 +255,7 @@ def get_organizer_my_events(
                 created_at=ev.created_at,
                 updated_at=ev.updated_at,
                 waitlist_count=wl_counts.get(ev.id, 0),
-                attendance_count=0,
+                attendance_count=checkin_counts.get(ev.id, 0),
             )
         )
 
@@ -465,4 +480,299 @@ def update_event_status(
     db.commit()
     db.refresh(event)
     return event
+
+
+@router.get("/{event_id}/attendees", response_model=EventAttendeesOverview)
+def get_event_attendees(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    status_filter: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = Query(None),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Get full attendee roster and queue overview for an event (Organizer only).
+    """
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    if event.organizer_id is not None and event.organizer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view attendee management for this event",
+        )
+
+    all_regs = (
+        db.query(Registration)
+        .join(User, Registration.user_id == User.id)
+        .filter(Registration.event_id == event_id)
+        .order_by(Registration.created_at.asc())
+        .all()
+    )
+
+    confirmed_count = sum(1 for r in all_regs if r.status == "confirmed")
+    waitlist_count = sum(1 for r in all_regs if r.status == "waitlist")
+    checked_in_count = sum(1 for r in all_regs if r.is_checked_in)
+    cancelled_count = sum(1 for r in all_regs if r.status == "cancelled")
+
+    wl_counter = 0
+    attendee_items = []
+    wl_queue_items = []
+
+    for r in all_regs:
+        wl_pos = None
+        if r.status == "waitlist":
+            wl_counter += 1
+            wl_pos = wl_counter
+
+        user_name = r.user.full_name if r.user and r.user.full_name else (r.user.email.split("@")[0] if r.user else "Attendee")
+        user_email = r.user.email if r.user else "unknown@example.com"
+
+        item = AttendeeItem(
+            id=r.id,
+            user_id=r.user_id,
+            event_id=r.event_id,
+            status=r.status,
+            ticket_code=r.ticket_code,
+            is_checked_in=bool(r.is_checked_in),
+            checked_in_at=r.checked_in_at,
+            created_at=r.created_at,
+            full_name=user_name,
+            email=user_email,
+            waitlist_position=wl_pos,
+        )
+
+        if r.status == "waitlist":
+            wl_queue_items.append(item)
+        attendee_items.append(item)
+
+    filtered = attendee_items
+    if status_filter and status_filter.lower() != "all":
+        sf = status_filter.lower().strip()
+        if sf in ["checked_in", "checked in"]:
+            filtered = [a for a in filtered if a.is_checked_in]
+        else:
+            filtered = [a for a in filtered if a.status.lower() == sf]
+
+    if search and search.strip():
+        term = search.strip().lower()
+        filtered = [
+            a for a in filtered
+            if term in a.full_name.lower() or term in a.email.lower() or term in a.ticket_code.lower()
+        ]
+
+    return EventAttendeesOverview(
+        event_id=event.id,
+        event_title=event.title,
+        event_status=event.status or "Published",
+        start_time=event.start_time,
+        end_time=event.end_time,
+        location=event.location or "",
+        is_online=event.is_online or False,
+        capacity=event.capacity,
+        total_registered=len(all_regs),
+        confirmed_count=confirmed_count,
+        waitlist_count=waitlist_count,
+        checked_in_count=checked_in_count,
+        cancelled_count=cancelled_count,
+        attendees=filtered,
+        waitlist_queue=wl_queue_items,
+    )
+
+
+@router.get("/{event_id}/check-in/lookup", response_model=List[AttendeeItem])
+def lookup_attendees_for_check_in(
+    event_id: UUID,
+    query: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Search candidate attendees for check-in desk by name, email, or ticket code.
+    """
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    if event.organizer_id is not None and event.organizer_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized")
+
+    term = f"%{query.strip()}%"
+    regs = (
+        db.query(Registration)
+        .join(User, Registration.user_id == User.id)
+        .filter(
+            Registration.event_id == event_id,
+            or_(
+                User.full_name.ilike(term),
+                User.email.ilike(term),
+                Registration.ticket_code.ilike(term),
+            ),
+        )
+        .limit(10)
+        .all()
+    )
+
+    results = []
+    for r in regs:
+        user_name = r.user.full_name if r.user and r.user.full_name else (r.user.email.split("@")[0] if r.user else "Attendee")
+        results.append(
+            AttendeeItem(
+                id=r.id,
+                user_id=r.user_id,
+                event_id=r.event_id,
+                status=r.status,
+                ticket_code=r.ticket_code,
+                is_checked_in=bool(r.is_checked_in),
+                checked_in_at=r.checked_in_at,
+                created_at=r.created_at,
+                full_name=user_name,
+                email=r.user.email if r.user else "",
+                waitlist_position=None,
+            )
+        )
+    return results
+
+
+@router.post("/{event_id}/check-in", response_model=CheckInResponse)
+def check_in_attendee(
+    event_id: UUID,
+    payload: CheckInRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Fast verification and check-in of attendee ticket.
+    """
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    if event.organizer_id is not None and event.organizer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to perform check-ins for this event",
+        )
+
+    query = (
+        db.query(Registration)
+        .join(User, Registration.user_id == User.id)
+        .filter(Registration.event_id == event_id)
+    )
+    if payload.registration_id:
+        query = query.filter(Registration.id == payload.registration_id)
+    elif payload.ticket_code and payload.ticket_code.strip():
+        clean_code = payload.ticket_code.strip()
+        query = query.filter(Registration.ticket_code.ilike(clean_code))
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provide ticket_code or registration_id")
+
+    reg = query.first()
+    if not reg:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found for this event")
+
+    user_name = reg.user.full_name if reg.user and reg.user.full_name else (reg.user.email.split("@")[0] if reg.user else "Attendee")
+    user_email = reg.user.email if reg.user else "unknown@example.com"
+
+    attendee_item = AttendeeItem(
+        id=reg.id,
+        user_id=reg.user_id,
+        event_id=reg.event_id,
+        status=reg.status,
+        ticket_code=reg.ticket_code,
+        is_checked_in=bool(reg.is_checked_in),
+        checked_in_at=reg.checked_in_at,
+        created_at=reg.created_at,
+        full_name=user_name,
+        email=user_email,
+        waitlist_position=None,
+    )
+
+    if reg.status == "cancelled":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This registration was cancelled.")
+
+    if reg.status == "waitlist":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Attendee is on the waitlist and not yet eligible for door check-in.",
+        )
+
+    if reg.is_checked_in:
+        return CheckInResponse(
+            success=True,
+            already_checked_in=True,
+            message=f"{user_name} was already checked in.",
+            attendee=attendee_item,
+        )
+
+    reg.is_checked_in = True
+    reg.checked_in_at = datetime.utcnow()
+    db.add(reg)
+    db.commit()
+    db.refresh(reg)
+
+    attendee_item.is_checked_in = True
+    attendee_item.checked_in_at = reg.checked_in_at
+
+    return CheckInResponse(
+        success=True,
+        already_checked_in=False,
+        message=f"Successfully verified and checked in {user_name}!",
+        attendee=attendee_item,
+    )
+
+
+@router.post("/{event_id}/attendees/{registration_id}/toggle-checkin", response_model=AttendeeItem)
+def toggle_attendee_checkin(
+    event_id: UUID,
+    registration_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Toggle an attendee's check-in status (check in or undo check in).
+    """
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    if event.organizer_id is not None and event.organizer_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized")
+
+    reg = (
+        db.query(Registration)
+        .join(User, Registration.user_id == User.id)
+        .filter(Registration.id == registration_id, Registration.event_id == event_id)
+        .first()
+    )
+    if not reg:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registration not found")
+
+    if reg.is_checked_in:
+        reg.is_checked_in = False
+        reg.checked_in_at = None
+    else:
+        reg.is_checked_in = True
+        reg.checked_in_at = datetime.utcnow()
+
+    db.add(reg)
+    db.commit()
+    db.refresh(reg)
+
+    user_name = reg.user.full_name if reg.user and reg.user.full_name else (reg.user.email.split("@")[0] if reg.user else "Attendee")
+    return AttendeeItem(
+        id=reg.id,
+        user_id=reg.user_id,
+        event_id=reg.event_id,
+        status=reg.status,
+        ticket_code=reg.ticket_code,
+        is_checked_in=bool(reg.is_checked_in),
+        checked_in_at=reg.checked_in_at,
+        created_at=reg.created_at,
+        full_name=user_name,
+        email=reg.user.email if reg.user else "",
+        waitlist_position=None,
+    )
+
 

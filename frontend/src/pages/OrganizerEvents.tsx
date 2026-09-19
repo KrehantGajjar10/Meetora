@@ -14,6 +14,7 @@ import {
   XCircle,
   QrCode,
   Edit,
+  Users,
 } from 'lucide-react';
 import OrganizerLayout from '@/components/layout/OrganizerLayout';
 import {
@@ -445,25 +446,45 @@ export default function OrganizerEvents() {
                             </button>
                             {activeMenuId === ev.id && (
                               <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-border bg-surface py-1 shadow-lg">
-                                <Link
-                                  to={`/events/${ev.id}`}
-                                  className="flex w-full items-center gap-2 px-4 py-2 text-xs text-text-secondary hover:bg-app-bg transition-colors"
-                                  onClick={() => setActiveMenuId(null)}
-                                >
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                  <span>Public page</span>
-                                </Link>
-                                <button
-                                  onClick={() => {
-                                    navigator.clipboard?.writeText?.(window.location.origin + `/events/${ev.id}`);
-                                    alert('Public event URL copied to clipboard!');
-                                    setActiveMenuId(null);
-                                  }}
-                                  className="flex w-full items-center gap-2 px-4 py-2 text-xs text-text-secondary hover:bg-app-bg transition-colors"
-                                >
-                                  <Share2 className="h-3.5 w-3.5" />
-                                  <span>Share link</span>
-                                </button>
+                                  <Link
+                                    to={`/events/${ev.id}`}
+                                    className="flex w-full items-center gap-2 px-4 py-2 text-xs text-text-secondary hover:bg-app-bg transition-colors"
+                                    onClick={() => setActiveMenuId(null)}
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    <span>Public page</span>
+                                  </Link>
+                                  {!isDraft && (
+                                    <>
+                                      <Link
+                                        to={`/organizer/events/${ev.id}/attendees`}
+                                        className="flex w-full items-center gap-2 px-4 py-2 text-xs text-text-secondary hover:bg-app-bg transition-colors"
+                                        onClick={() => setActiveMenuId(null)}
+                                      >
+                                        <Users className="h-3.5 w-3.5" />
+                                        <span>Manage Attendees</span>
+                                      </Link>
+                                      <Link
+                                        to={`/organizer/events/${ev.id}/checkin`}
+                                        className="flex w-full items-center gap-2 px-4 py-2 text-xs text-text-secondary hover:bg-app-bg transition-colors"
+                                        onClick={() => setActiveMenuId(null)}
+                                      >
+                                        <QrCode className="h-3.5 w-3.5" />
+                                        <span>Check-in Desk</span>
+                                      </Link>
+                                    </>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard?.writeText?.(window.location.origin + `/events/${ev.id}`);
+                                      alert('Public event URL copied to clipboard!');
+                                      setActiveMenuId(null);
+                                    }}
+                                    className="flex w-full items-center gap-2 px-4 py-2 text-xs text-text-secondary hover:bg-app-bg transition-colors"
+                                  >
+                                    <Share2 className="h-3.5 w-3.5" />
+                                    <span>Share link</span>
+                                  </button>
                                 {!isCancelled && (
                                   <button
                                     onClick={() => {
@@ -577,18 +598,25 @@ export default function OrganizerEvents() {
                           ) : (
                             <>
                               <Link
-                                to={`/organizer/events/${ev.id}/edit`}
+                                to={`/organizer/events/${ev.id}/checkin`}
                                 className="flex items-center gap-1.5 rounded-lg bg-primary-soft px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
                               >
                                 <QrCode className="h-4 w-4" />
                                 <span>Check-in Desk</span>
                               </Link>
                               <Link
-                                to={`/organizer/events/${ev.id}/edit`}
+                                to={`/organizer/events/${ev.id}/attendees`}
                                 className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-xs font-semibold text-text-primary transition-colors hover:bg-app-bg"
                               >
-                                <Edit className="h-3.5 w-3.5 text-text-secondary" />
-                                <span>Manage Event</span>
+                                <Users className="h-3.5 w-3.5 text-text-secondary" />
+                                <span>Manage Attendees</span>
+                              </Link>
+                              <Link
+                                to={`/organizer/events/${ev.id}/edit`}
+                                className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-xs font-semibold text-text-secondary transition-colors hover:bg-app-bg hover:text-text-primary"
+                                title="Edit Event Details"
+                              >
+                                <Edit className="h-3.5 w-3.5" />
                               </Link>
                             </>
                           )}
