@@ -169,44 +169,32 @@ Copy-Item frontend\.env.example frontend\.env
 
 The default local API URL is `http://localhost:8000`.
 
-### 2. Start PostgreSQL and the API
+### 2. Start the Docker deployment
 
 ```powershell
-docker compose up -d db api
+docker compose up -d --build
 ```
 
-Docker Compose starts PostgreSQL and the FastAPI API. The frontend is run locally with Vite because the Compose file does not define a frontend service.
-
-Apply migrations from the backend directory after PostgreSQL is available:
-
-```powershell
-cd backend
-Copy-Item .env.example .env
-uv sync --python 3.12
-uv run alembic upgrade head
-```
-
-Or run the backend directly:
-
-```powershell
-cd backend
-Copy-Item .env.example .env
-uv sync --python 3.12
-uv run alembic upgrade head
-uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-### 3. Start the frontend
-
-In a second terminal:
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
+Compose starts PostgreSQL, runs Alembic migrations automatically in the API container, and serves the production frontend through Nginx. The frontend image receives `VITE_API_BASE_URL` at build time; this must be a URL reachable by the browser, not the internal `db` or `api` service hostname.
 
 Open **http://localhost:5173**.
+
+The root `.env` may define `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`, `API_PORT`, `FRONTEND_PORT`, `ENVIRONMENT`, `CORS_ORIGINS`, and `VITE_API_BASE_URL`. The defaults in [`.env.example`](./.env.example) are suitable for local Docker use. Change `VITE_API_BASE_URL` and `CORS_ORIGINS` together when deploying behind a different public API URL or frontend origin.
+
+To stop the stack without deleting the PostgreSQL data volume:
+
+```powershell
+docker compose down
+```
+
+To rebuild after changing frontend source or the API URL:
+
+```powershell
+docker compose build --no-cache frontend
+docker compose up -d
+```
+
+For local development without the frontend container, keep using `frontend\.env` with `VITE_API_BASE_URL=http://localhost:8000` and run `npm run dev`.
 
 ## Application URLs
 

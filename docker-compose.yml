@@ -2,7 +2,6 @@ services:
   # PostgreSQL Database Service
   db:
     image: postgres:16-alpine
-    container_name: meetora_db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-meetora_user}
@@ -26,7 +25,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: meetora_api
     restart: unless-stopped
     depends_on:
       db:
@@ -48,6 +46,22 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    networks:
+      - meetora_network
+
+  # React/Vite Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
     networks:
       - meetora_network
 
